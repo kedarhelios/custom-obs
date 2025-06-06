@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>User Stream</title>
+    </head>
+    <body>
+        <h2>Streaming to Admin...</h2>
+        <video id="localVideo" autoplay muted playsinline></video>
+        <script src="/socket.io/socket.io.js"></script>
+        <script>
+            const socket = io();
+            socket.emit("role", "streamer");
+
+            const video = document.getElementById("localVideo");
+            let pc = new RTCPeerConnection({
+                iceServers: [
+                    { urls: "stun:stun.l.google.com:19302" },
+                    {
+                        urls: "turn:turn.anyfirewall.com:443?transport=tcp",
+                        username: "webrtc",
+                        credential: "webrtc",
+                    },
+                ],
+            });
+
+            navigator.mediaDevices
+                .getUserMedia({ video: true, audio: true })
+                .then((stream) => {
+                    video.srcObject = stream;
+                    stream
+                        .getTracks()
+                        .forEach((track) => pc.addTrack(track, stream));
+                    return pc.createOffer();
+                })
+                .then((offer) => {
+                    return pc.setLocalDescription(offer).then(() => {
+                        socket.emit("offer", offer);
+                    });
+                });
+
+            socket.on("answer", async (answer) => {
+                await pc.setRemoteDescription(
+                    new RTCSessionDescription(answer)
+                );
+            });
+
+            socket.on("ice-candidate", async (candidate) => {
+                if (candidate) await pc.addIceCandidate(candidate);
+            });
+
+            pc.onicecandidate = ({ candidate }) => {
+                if (candidate) socket.emit("ice-candidate", candidate);
+            };
+        </script>
+    </body>
+</html>
