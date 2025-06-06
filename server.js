@@ -30,6 +30,8 @@
 
 const express = require("express");
 const http = require("http");
+const path = require("path");
+const fs = require("fs");
 const { Server } = require("socket.io");
 
 const app = express();
@@ -57,6 +59,14 @@ io.on("connection", (socket) => {
         io.to(streamerId).emit("answer", answer);
     });
 
+    const filename = `recording-${socket.id}-${Date.now()}.webm`;
+    const filePath = path.join(__dirname, "recordings", filename);
+
+    // Ensure the directory exists
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
+    const fileStream = fs.createWriteStream(filePath, { flags: "a" });
+
     // ICE candidate from streamer or admin
     socket.on("ice-candidate", ({ candidate, streamerId }) => {
         if (streamerId) {
@@ -69,6 +79,10 @@ io.on("connection", (socket) => {
                 streamerId: socket.id,
             });
         }
+    });
+
+    socket.on("binarystream", (chunk) => {
+        fileStream.write(Buffer.from(chunk));
     });
 
     socket.on("disconnect", () => {

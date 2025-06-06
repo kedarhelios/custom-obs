@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html>
     <head>
         <title>Admin Viewer - Multi Stream</title>
@@ -57,6 +57,149 @@
                         video = createVideoElement(streamerId);
                     }
                     video.srcObject = event.streams[0];
+                };
+
+                pc.onicecandidate = ({ candidate }) => {
+                    if (candidate) {
+                        socket.emit("ice-candidate", { candidate, streamerId });
+                    }
+                };
+
+                await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                socket.emit("answer", { answer, streamerId });
+            });
+
+            socket.on("ice-candidate", async ({ candidate, streamerId }) => {
+                const pc = peerConnections[streamerId];
+                if (pc && candidate) {
+                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                }
+            });
+        </script>
+    </body>
+</html> -->
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Admin Viewer - Multi Stream</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background: #f9f9f9;
+            }
+            h2 {
+                text-align: center;
+            }
+            #selectedStream {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                margin-bottom: 20px;
+            }
+            #selectedVideo {
+                width: 800px;
+                height: 450px;
+                background: #000;
+            }
+            #videoContainer {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 15px;
+                justify-content: center;
+            }
+            .streamWrapper {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            video {
+                width: 400px;
+                height: 300px;
+                background: #000;
+            }
+            button {
+                margin-top: 8px;
+                padding: 6px 12px;
+                font-size: 14px;
+                cursor: pointer;
+            }
+        </style>
+    </head>
+    <body>
+        <h2>Admin Viewer</h2>
+        <div id="selectedStream">
+            <h3>Selected Stream</h3>
+            <video id="selectedVideo" autoplay playsinline controls></video>
+            <button id="start-btn">Start</button>
+        </div>
+        <div id="videoContainer"></div>
+
+        <script src="/socket.io/socket.io.js"></script>
+        <script>
+            const socket = io();
+            const videoContainer = document.getElementById("videoContainer");
+            const selectedVideo = document.getElementById("selectedVideo");
+            const peerConnections = {};
+            const streamElements = new Map(); // streamerId -> { video, stream }
+            const startButton = document.getElementById("start-btn");
+
+            startButton.addEventListener("click", () => {
+                const mediaRecorder = new MediaRecorder(
+                    selectedVideo.srcObject,
+                    {
+                        audioBitsPerSecond: 128000,
+                        videoBitsPerSecond: 2500000,
+                        // framerate: 25,
+                    }
+                );
+
+                mediaRecorder.ondataavailable = (ev) => {
+                    console.log("Binary Stream Available", ev.data);
+                    socket.emit("binarystream", ev.data);
+                };
+
+                mediaRecorder.start(1000);
+            });
+
+            function createStreamElement(streamerId, stream) {
+                const wrapper = document.createElement("div");
+                wrapper.className = "streamWrapper";
+                wrapper.id = `wrapper-${streamerId}`;
+
+                const video = document.createElement("video");
+                video.id = `video-${streamerId}`;
+                video.autoplay = true;
+                video.playsInline = true;
+                video.controls = true;
+                video.srcObject = stream;
+
+                const button = document.createElement("button");
+                button.textContent = "Select Stream";
+                button.onclick = () => {
+                    selectedVideo.srcObject = stream;
+                };
+
+                wrapper.appendChild(video);
+                wrapper.appendChild(button);
+                videoContainer.appendChild(wrapper);
+
+                streamElements.set(streamerId, { video, stream });
+            }
+
+            socket.on("offer", async ({ offer, streamerId }) => {
+                if (!streamerId) return;
+
+                const pc = new RTCPeerConnection();
+                peerConnections[streamerId] = pc;
+
+                pc.ontrack = (event) => {
+                    const stream = event.streams[0];
+                    if (!streamElements.has(streamerId)) {
+                        createStreamElement(streamerId, stream);
+                    }
                 };
 
                 pc.onicecandidate = ({ candidate }) => {
