@@ -1,9 +1,9 @@
-const express = require("express");
-const http = require("http");
-const path = require("path");
-const fs = require("fs");
-const spawn = require("child_process").spawn;
-const { Server } = require("socket.io");
+import express from "express";
+import http from "http";
+import path from "path";
+import fs from "fs";
+import { spawn } from "child_process";
+import { Server } from "socket.io";
 
 const app = express();
 const server = http.createServer(app);
